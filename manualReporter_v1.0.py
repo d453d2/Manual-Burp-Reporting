@@ -22,11 +22,17 @@ import traceback
 import csv
 import os
 import re
-# handles ASCII encoding errors.
 import sys
+
+# handles ASCII encoding errors.
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
+
+# Burp extension that allows the user to export target findings out to CSV.
+# This includes multiple requests and responses per issue, mulitple hosts or targets.
+# Particularly useful to push findings into another tool.
+# Enjoy!
 
 
 class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionListener, IMessageEditorController, ITab, ITextEditor, IHttpService, IScanIssue, IHttpRequestResponseWithMarkers):
@@ -49,7 +55,7 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
             self._callbacks.registerScannerListener(self)
 
             print "[+] Manual Reporter Extension Loaded!"
-            print "[-] by d453d2 - 2016"
+            print "[-] by SEDZ - 2016"
 
             # create report file csv
             self.createReport()
@@ -239,14 +245,6 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
         self.c = report
         #clear report 
         c = open(self.c, "w")
-        # # create report file csv
-        # c_headers       = ["Request", \
-        #                     "Request-Markers", \
-        #                     "Response", \
-        #                     "Response-Markers", \
-        #                     "MultiRequest" \
-        #                     ]
-        # self.c.writerow(c_headers)  
         c.close()
 
         return self.c
@@ -281,24 +279,6 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
         return [self.menuItem]
     
 
-
-# Notes:
-
-        # requestResponseMarkers are an array of one or more lists of none overlapping ints. may none or only one
-        # responseMarkers:  [[I@532164c, [I@675a9cb5]
-        # 
-        #for i in responseMarkers:
-        #    print "a: ", i
-        # a:  array('i', [1901, 2005]) # first marker set
-        # a:  array('i', [2424, 2534]) # second marker set
-        #print "i: ", responseMarkers[0][0]
-        # 1901
-        #print "i: ", responseMarkers[0][1]
-        # 2005
-        #print "i: ", responseMarkers[1][0]
-        # 2424
-        #print "i: ", responseMarkers[1][1]
-        # 2534
 
 
 
