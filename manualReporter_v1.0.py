@@ -21,36 +21,40 @@ import traceback
 
 import csv
 import os
-
+import re
+# handles ASCII encoding errors.
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 
 
 class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionListener, IMessageEditorController, ITab, ITextEditor, IHttpService, IScanIssue, IHttpRequestResponseWithMarkers):
 
     def __init__(self):
-        self.menuItem = JMenuItem('send to manualReporter')
-        self.menuItem.addActionListener(self)   
+            self.menuItem = JMenuItem('send to manualReporter')
+            self.menuItem.addActionListener(self)   
 
     # implement IBurpExtender
     def registerExtenderCallbacks(self, callbacks):
     
-        # keep a reference to our callbacks object (Burp Extensibility Feature)
-        self._callbacks = callbacks   
-        self._helpers = callbacks.getHelpers()
+            # keep a reference to our callbacks object (Burp Extensibility Feature)
+            self._callbacks = callbacks   
+            self._helpers = callbacks.getHelpers()
 
-        # set our extension name
-        callbacks.setExtensionName("Manual Reporter")
-        callbacks.registerContextMenuFactory(self)
+            # set our extension name
+            callbacks.setExtensionName("Manual Reporter")
+            callbacks.registerContextMenuFactory(self)
 
-        self._callbacks.registerScannerListener(self)
+            self._callbacks.registerScannerListener(self)
 
-        print "[+] Manual Reporter Extension Loaded!"
-        print "[-] by d453d2 - 2016"
+            print "[+] Manual Reporter Extension Loaded!"
+            print "[-] by d453d2 - 2016"
 
-        # create report file csv
-        self.createReport()
+            # create report file csv
+            self.createReport()
 
-        self.masterFindingsList = []
+            self.masterFindingsList = []
 
 
 ####### ------- NEW ------- #######
@@ -63,37 +67,45 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
         # parses currently selected finding to a string
         if len(issues) >= 1 : # one or more issues can be sent (cmd select for example within target...)
 
-            for self.m in issues:
+                for self.m in issues:
 
-                #print self.m
-                # burp.sfg@3b784b06 # type <type 'burp.sfg'>
+                        #print self.m
+                        # burp.sfg@3b784b06 # type <type 'burp.sfg'>
 
-                # add requestResponseWithMarkers to be global so can be included in scanIssue
-                requestResponse = self.m.getHttpMessages()
+                        # add requestResponseWithMarkers to be global so can be included in scanIssue
+                        requestResponse = self.m.getHttpMessages()
 
-                #print "RequestResponse: ", requestResponse
+                        #print "RequestResponse: ", requestResponse
 
-                # returns 
-                l = array.tolist(requestResponse)
-                #print l
-                #print l[0]
+                        # returns 
+                        l = array.tolist(requestResponse)
+                        #print l
+                        #print l[0]
 
-                # if there is more than one request response to a finding...
-                if len(l) > 1:
-                    k = len(l)
-                    q = 1
-                    for r in l:
+                        # if there is more than one request response to a finding...
+                        if len(l) > 1:
+                            k = len(l)
+                            q = 1
+                            for r in l:
 
-                        #call functionality to handle issues
-                        self.processRequest(r, q, k)
-                        q = q + 1
-                        
-                else:
-                    k = ""
-                    q = ""
-                    #call functionality to handle issues
-                    self.processRequest(l[0], q, k)
+                                #call functionality to handle issues
+                                self.processRequest(r, q, k)
+                                q = q + 1
+                                        
+                        elif len(l) == 1:
+                            k = ""
+                            q = ""
+                            #call functionality to handle issues
+                            self.processRequest(l[0], q, k)
 
+                        else: # bug: some issues do not have request responses.
+                            k = ""
+                            q = ""
+                            #call functionality to handle issues
+                            self.processRequestWithoutRR(q, k)
+
+
+                                
 
 
     def processRequest(self, requestResponse, multipartOne, MulitpartTwo):
@@ -142,7 +154,48 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
 
         else:
             print "[!] Finding added to report."
-        
+            
+
+    def processRequestWithoutRR(self, multipartOne, MulitpartTwo):
+    
+
+        fName = self.m.getIssueName() # retrive issue name
+        print "[+] Finding Name: ", self.m.getIssueName()
+        url = self.m.getUrl()
+        print "[+] Finding sent to report: [%s] " % str(url).encode('utf-8')
+
+        requestData = self.m.getIssueDetail() # converts & Prints out the entire request as string  # certifcates
+
+        if requestData is not None:
+            # removes html as the scanissue is all in html
+            cleaner = re.compile('<.*?>') 
+            cleanReqData = re.sub(cleaner, '\n', requestData)
+            cleanRequestData = cleanReqData.replace('&nbsp','') # this could still be tidied to produce better output.
+
+            # handle none unicode
+            cleanRequestData = cleanRequestData.encode('utf-8')
+
+            # base64 encode requestresponses:
+            enRequest = cleanRequestData.encode('base64','strict')
+
+        else:
+            enRequest = None
+
+        # Handles issues with more than on request and response to the issue eg: 1/2, 2/2
+        multipart = str(multipartOne) + "/" + str(MulitpartTwo)
+
+        Cbuffer = ""
+        # prepare to write out to file   
+        finding = [fName, url, enRequest, "", "", "", multipart, Cbuffer]
+
+        # write out to file
+        self.report(finding)
+
+        if multipartOne != "" :
+            print "[!] Part %s added to report" % multipart
+
+        else:
+            print "[!] Finding added to report."
 
 
 
@@ -209,19 +262,21 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
 # Actions on menu click...
 
     def actionPerformed(self, actionEvent):
+
         print "*" * 60
         try:
-            # When clicked!! 
-            self.getSelectedScanIssues()
+                # When clicked!! 
+                self.getSelectedScanIssues()
 
         except:
-            tb = traceback.format_exc()
-            print tb
+                tb = traceback.format_exc()
+                print tb
 
 
 # create Menu
 
     def createMenuItems(self, ctxMenuInvocation):
+    
         self.ctxMenuInvocation = ctxMenuInvocation
         return [self.menuItem]
     
@@ -229,21 +284,21 @@ class BurpExtender(IBurpExtender, IScannerListener, IContextMenuFactory, ActionL
 
 # Notes:
 
-    # requestResponseMarkers are an array of one or more lists of none overlapping ints. may none or only one
-    # responseMarkers:  [[I@532164c, [I@675a9cb5]
-    # 
-    #for i in responseMarkers:
-    #    print "a: ", i
-    # a:  array('i', [1901, 2005]) # first marker set
-    # a:  array('i', [2424, 2534]) # second marker set
-    #print "i: ", responseMarkers[0][0]
-    # 1901
-    #print "i: ", responseMarkers[0][1]
-    # 2005
-    #print "i: ", responseMarkers[1][0]
-    # 2424
-    #print "i: ", responseMarkers[1][1]
-    # 2534
+        # requestResponseMarkers are an array of one or more lists of none overlapping ints. may none or only one
+        # responseMarkers:  [[I@532164c, [I@675a9cb5]
+        # 
+        #for i in responseMarkers:
+        #    print "a: ", i
+        # a:  array('i', [1901, 2005]) # first marker set
+        # a:  array('i', [2424, 2534]) # second marker set
+        #print "i: ", responseMarkers[0][0]
+        # 1901
+        #print "i: ", responseMarkers[0][1]
+        # 2005
+        #print "i: ", responseMarkers[1][0]
+        # 2424
+        #print "i: ", responseMarkers[1][1]
+        # 2534
 
 
 
